@@ -1,10 +1,10 @@
 import { eq } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireUser } from "../src/lib/server/auth";
-import { db, schema } from "../src/lib/server/db";
-import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http";
-import { mapSource } from "../src/lib/server/mappers";
-import type { Domain } from "../src/lib/types";
+import { requireUser } from "../src/lib/server/auth.js";
+import { db, schema } from "../src/lib/server/db.js";
+import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http.js";
+import { mapSource } from "../src/lib/server/mappers.js";
+import type { Domain } from "../src/lib/types.js";
 
 const DOMAINS = new Set<Domain>(["finance", "supply_chain", "marketing", "content", "other"]);
 

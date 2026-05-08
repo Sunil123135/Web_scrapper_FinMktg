@@ -1,12 +1,12 @@
 import { and, eq } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { createContentHash } from "../src/lib/hash";
-import { requireUser } from "../src/lib/server/auth";
-import { scoreWithClaude } from "../src/lib/server/claude";
-import { db, schema } from "../src/lib/server/db";
-import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http";
-import { extractArticle } from "../src/lib/server/scrape";
-import type { Domain, FailedSource } from "../src/lib/types";
+import { createContentHash } from "../src/lib/hash.js";
+import { requireUser } from "../src/lib/server/auth.js";
+import { scoreWithClaude } from "../src/lib/server/claude.js";
+import { db, schema } from "../src/lib/server/db.js";
+import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http.js";
+import { extractArticle } from "../src/lib/server/scrape.js";
+import type { Domain, FailedSource } from "../src/lib/types.js";
 
 const DOMAINS = new Set<Domain>(["finance", "supply_chain", "marketing", "content", "other"]);
 

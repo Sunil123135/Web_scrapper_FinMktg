@@ -1,6 +1,6 @@
 import type { InferSelectModel } from "drizzle-orm";
-import type { BriefItem, ScrapedItem, Source } from "../types";
-import { schema } from "./db";
+import type { BriefItem, ScrapedItem, Source } from "../types.js";
+import { schema } from "./db.js";
 
 type SourceRow = InferSelectModel<typeof schema.sources>;
 type ScrapedItemRow = InferSelectModel<typeof schema.scrapedItems> & {

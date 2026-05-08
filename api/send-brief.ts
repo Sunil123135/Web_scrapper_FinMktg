@@ -1,9 +1,9 @@
 import { asc, eq } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { buildBriefPayload } from "../src/lib/brief";
-import { requireUser } from "../src/lib/server/auth";
-import { db, schema } from "../src/lib/server/db";
-import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http";
+import { buildBriefPayload } from "../src/lib/brief.js";
+import { requireUser } from "../src/lib/server/auth.js";
+import { db, schema } from "../src/lib/server/db.js";
+import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {

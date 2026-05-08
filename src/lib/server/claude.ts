@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { parseClaudeScore, type ClaudeScore } from "../scoring";
+import { parseClaudeScore, type ClaudeScore } from "../scoring.js";
 
 const SYSTEM_PROMPT =
   'Output ONLY raw JSON: { "summary": string <=60 words, "relevance_score": integer 0-10, "reason": string <=25 words }.';
