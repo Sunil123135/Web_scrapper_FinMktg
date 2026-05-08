@@ -9,7 +9,7 @@ ScrapeSignal is a Vite + React MVP that turns web sources into a relevance-ranke
 - Neon Postgres through Drizzle ORM
 - Vercel Serverless Functions in `api/`
 - Anthropic Claude for strict JSON scoring
-- Jina Reader primary scraping with Readability fallback
+- Firecrawl primary scraping, with Jina Reader, Readability, and BrowserAct fallbacks
 - n8n webhook delivery for "Send Brief"
 
 ## Local Setup
@@ -33,7 +33,12 @@ cp .env.example .env
 - `DATABASE_URL`: Neon pooled connection string, usually with `-pooler` in the host and `sslmode=require`.
 - `ANTHROPIC_API_KEY`: Anthropic API key.
 - `N8N_WEBHOOK_URL`: Production n8n webhook URL.
-- `JINA_API_KEY`: Optional Jina key.
+- `BROWSERACT_API_KEY`: Optional BrowserAct API key. Required for BrowserAct scraping.
+- `BROWSERACT_WORKFLOW_ID` or `BROWSERACT_TEMPLATE_ID`: Optional BrowserAct workflow/template ID that accepts a URL input.
+- `BROWSERACT_URL_INPUT_NAME`: Optional BrowserAct URL input parameter name. Defaults to `url`.
+- `BROWSERACT_PROXY_REGION`: Optional BrowserAct template proxy region. Defaults to `US`.
+- `FIRECRAWL_API_KEY`: Optional Firecrawl API key. Required for Firecrawl scraping.
+- `JINA_API_KEY`: Optional Jina key for fallback scraping.
 
 4. Run the app:
 
@@ -114,7 +119,23 @@ Import the GitHub repository in Vercel and set these environment variables:
 - `ANTHROPIC_API_KEY`
 - `ANTHROPIC_MODEL` (optional)
 - `N8N_WEBHOOK_URL`
+- `BROWSERACT_API_KEY` (optional)
+- `BROWSERACT_WORKFLOW_ID` or `BROWSERACT_TEMPLATE_ID` (optional)
+- `BROWSERACT_URL_INPUT_NAME` (optional)
+- `BROWSERACT_PROXY_REGION` (optional)
+- `FIRECRAWL_API_KEY` (optional)
 - `JINA_API_KEY` (optional)
+
+## Scraper Order And Cookies
+
+`Scrape Now` tries scrapers in this order:
+
+1. Firecrawl single-page scrape, when configured.
+2. Jina Reader.
+3. Direct fetch plus Readability.
+4. BrowserAct workflow/template task, when configured.
+
+Outbound scraper requests strip `Cookie` and `Set-Cookie` headers, direct fetches use `credentials: "omit"`, and Firecrawl is called without custom cookie headers or cache storage. BrowserAct is invoked as a fresh workflow task per source URL; do not configure the BrowserAct workflow to reuse a logged-in browser profile or inject cookies.
 
 Build command:
 

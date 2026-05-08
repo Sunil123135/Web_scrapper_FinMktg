@@ -5,7 +5,15 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default [
-  { ignores: ["dist", "node_modules", "db/migrations/*.sql"] },
+  {
+    ignores: [
+      "dist/**",
+      "node_modules/**",
+      "**/node_modules/**",
+      "clerk-nextjs/**",
+      "db/migrations/*.sql",
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

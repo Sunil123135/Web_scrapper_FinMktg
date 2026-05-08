@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildBriefPayload } from "../src/lib/brief";
 import { createContentHash, normalizeUrlForHash } from "../src/lib/hash";
 import { parseClaudeScore } from "../src/lib/scoring";
+import { extractArticleWithClients, stripCookieHeaders, type ExtractedArticle } from "../src/lib/server/scrape";
 
 describe("content hashing", () => {
   it("normalizes URLs before hashing scraper results", async () => {
@@ -75,5 +76,52 @@ describe("brief webhook payload", () => {
         },
       ],
     });
+  });
+});
+
+describe("scraper priority and privacy", () => {
+  const article: ExtractedArticle = {
+    url: "https://example.com/news",
+    title: "Example News",
+    author: null,
+    publishedAt: null,
+    bodyText: "Useful article text. ".repeat(20),
+  };
+
+  it("tries Firecrawl before Jina and falls back when the first scraper has no content", async () => {
+    const calls: string[] = [];
+
+    const result = await extractArticleWithClients("https://example.com/news", [
+      {
+        name: "Firecrawl",
+        scrape: async () => {
+          calls.push("Firecrawl");
+          return null;
+        },
+      },
+      {
+        name: "Jina Reader",
+        scrape: async () => {
+          calls.push("Jina Reader");
+          return article;
+        },
+      },
+    ]);
+
+    expect(result).toBe(article);
+    expect(calls).toEqual(["Firecrawl", "Jina Reader"]);
+  });
+
+  it("removes cookie headers from outbound scraper requests", () => {
+    const headers = stripCookieHeaders({
+      Cookie: "session=secret",
+      "Set-Cookie": "session=secret",
+      Authorization: "Bearer token",
+    });
+
+    const normalized = new Headers(headers);
+    expect(normalized.has("cookie")).toBe(false);
+    expect(normalized.has("set-cookie")).toBe(false);
+    expect(normalized.get("authorization")).toBe("Bearer token");
   });
 });
