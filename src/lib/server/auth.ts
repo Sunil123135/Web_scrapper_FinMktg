@@ -1,5 +1,5 @@
 import { createClerkClient, verifyToken } from "@clerk/backend";
-import { and, eq, ne } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { VercelRequest } from "@vercel/node";
 import { db, schema } from "./db";
 
@@ -44,39 +44,49 @@ export async function requireUser(req: VercelRequest): Promise<AuthenticatedUser
     throw Object.assign(new Error("Signed-in user has no primary email"), { statusCode: 400 });
   }
 
-  const user: AuthenticatedUser = {
+  const clerkIdentity: AuthenticatedUser = {
     id: userId,
     email,
     name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || clerkUser.username || null,
     imageUrl: clerkUser.imageUrl ?? null,
   };
 
-  // Remove any stale row that has this email but a different Clerk user ID.
-  // This happens when dev vs prod Clerk environments assign different IDs to the same email.
-  const staleRow = await db.query.users.findFirst({
-    where: and(eq(schema.users.email, user.email), ne(schema.users.id, user.id)),
+  const userById = await db.query.users.findFirst({
+    where: eq(schema.users.id, clerkIdentity.id),
   });
-  if (staleRow) {
-    await db.delete(schema.users).where(eq(schema.users.id, staleRow.id));
+
+  const canonicalUser =
+    userById ??
+    (await db.query.users.findFirst({
+      where: eq(schema.users.email, clerkIdentity.email),
+    }));
+
+  if (!canonicalUser) {
+    await db.insert(schema.users).values({
+      id: clerkIdentity.id,
+      email: clerkIdentity.email,
+      name: clerkIdentity.name,
+      imageUrl: clerkIdentity.imageUrl,
+      authProvider: "clerk",
+    });
+  } else {
+    await db
+      .update(schema.users)
+      .set({
+        email: clerkIdentity.email,
+        name: clerkIdentity.name,
+        imageUrl: clerkIdentity.imageUrl,
+        authProvider: "clerk",
+      })
+      .where(eq(schema.users.id, canonicalUser.id));
   }
 
-  await db
-    .insert(schema.users)
-    .values({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      imageUrl: user.imageUrl,
-      authProvider: "clerk",
-    })
-    .onConflictDoUpdate({
-      target: schema.users.id,
-      set: {
-        email: user.email,
-        name: user.name,
-        imageUrl: user.imageUrl,
-      },
-    });
+  const user: AuthenticatedUser = {
+    id: canonicalUser?.id ?? clerkIdentity.id,
+    email: clerkIdentity.email,
+    name: clerkIdentity.name,
+    imageUrl: clerkIdentity.imageUrl,
+  };
 
   const existingProfile = await db.query.interestProfiles.findFirst({
     where: eq(schema.interestProfiles.userId, user.id),
