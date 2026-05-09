@@ -1,6 +1,4 @@
 import Firecrawl from "@mendable/firecrawl-js";
-import { Readability } from "@mozilla/readability";
-import { JSDOM } from "jsdom";
 
 export type ExtractedArticle = {
   url: string;
@@ -17,6 +15,9 @@ export type ScraperClient = {
 
 const FETCH_TIMEOUT_MS = 15_000;
 const MIN_BODY_TEXT_LENGTH = 200;
+const APIFY_SYNC_BASE_URL = "https://api.apify.com/v2/acts";
+const APIFY_SYNC_TIMEOUT_MS = 120_000;
+const DEFAULT_APIFY_ACTOR = "apify/website-content-crawler";
 const BROWSERACT_API_BASE_URL = "https://api.browseract.com/v2";
 const BROWSERACT_POLL_INTERVAL_MS = 5_000;
 const BROWSERACT_TIMEOUT_MS = 120_000;
@@ -127,6 +128,98 @@ function findLongestText(value: unknown): string | null {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function apifyActorPath(actorId: string): string {
+  const trimmed = actorId.trim();
+  if (trimmed.includes("~")) {
+    return trimmed;
+  }
+  return trimmed.replace(/^([^/]+)\//, "$1~");
+}
+
+function withDeadlineMs(ms: number, upstream?: AbortSignal) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+
+  if (upstream) {
+    upstream.addEventListener("abort", () => controller.abort(), { once: true });
+  }
+
+  return { signal: controller.signal, clear: () => clearTimeout(timer) };
+}
+
+async function scrapeWithApify(url: string): Promise<ExtractedArticle | null> {
+  const token = process.env.APIFY_API_TOKEN ?? process.env.APIFY_TOKEN;
+  if (!token) {
+    return null;
+  }
+
+  const actorRaw = process.env.APIFY_ACTOR_ID ?? DEFAULT_APIFY_ACTOR;
+  const crawlerType = process.env.APIFY_CRAWLER_TYPE ?? "playwright:adaptive";
+  const actorPath = apifyActorPath(actorRaw);
+  const deadlineMs =
+    typeof process.env.APIFY_SYNC_TIMEOUT_MS === "string"
+      ? Math.max(FETCH_TIMEOUT_MS, Number(process.env.APIFY_SYNC_TIMEOUT_MS) || APIFY_SYNC_TIMEOUT_MS)
+      : APIFY_SYNC_TIMEOUT_MS;
+  const timeoutSecs = Math.min(300, Math.ceil(deadlineMs / 1000));
+
+  const input = {
+    startUrls: [{ url }],
+    crawlerType,
+    maxCrawlDepth: 0,
+    maxCrawlPages: 1,
+    maxResults: 1,
+    saveMarkdown: true,
+    useSitemaps: false,
+    useLlmsTxt: false,
+  };
+
+  const deadline = withDeadlineMs(deadlineMs);
+
+  try {
+    const endpoint = `${APIFY_SYNC_BASE_URL}/${encodeURIComponent(actorPath)}/run-sync-get-dataset-items?timeout=${timeoutSecs}`;
+    const response = await fetch(endpoint, {
+      method: "POST",
+      credentials: "omit",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+      signal: deadline.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Apify scrape failed with ${response.status}`);
+    }
+
+    const rows = (await response.json()) as unknown;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return null;
+    }
+
+    const extracted = findLongestText(rows[0]);
+    if (!extracted) {
+      return null;
+    }
+
+    const rowObj = readObject(rows[0]);
+    const hostname = new URL(url).hostname;
+    let fallbackTitle = hostname;
+    if (typeof rowObj?.title === "string" && rowObj.title.trim()) {
+      fallbackTitle = rowObj.title.trim();
+    } else {
+      const meta = readObject(rowObj?.metadata);
+      if (typeof meta?.title === "string" && meta.title.trim()) {
+        fallbackTitle = meta.title.trim();
+      }
+    }
+
+    return articleFromMarkdown(url, extracted, fallbackTitle);
+  } finally {
+    deadline.clear();
+  }
 }
 
 async function scrapeWithBrowserAct(url: string): Promise<ExtractedArticle | null> {
@@ -241,6 +334,7 @@ async function scrapeWithJina(url: string): Promise<ExtractedArticle | null> {
 }
 
 async function scrapeWithReadability(url: string): Promise<ExtractedArticle | null> {
+  const [{ Readability }, { JSDOM }] = await Promise.all([import("@mozilla/readability"), import("jsdom")]);
   const response = await fetchWithTimeout(url);
   if (!response.ok) {
     throw new Error(`Fetch failed with ${response.status}`);
@@ -265,6 +359,7 @@ async function scrapeWithReadability(url: string): Promise<ExtractedArticle | nu
 
 function defaultScrapers(): ScraperClient[] {
   return [
+    { name: "Apify", scrape: scrapeWithApify },
     { name: "Firecrawl", scrape: scrapeWithFirecrawl },
     { name: "Jina Reader", scrape: scrapeWithJina },
     { name: "Readability", scrape: scrapeWithReadability },

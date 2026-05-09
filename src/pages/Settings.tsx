@@ -11,6 +11,7 @@ const envVars = [
   "GOOGLE_CLIENT_SECRET",
   "AUTH_SECRET",
   "N8N_WEBHOOK_URL",
+  "N8N_POST_ON_SCRAPE",
   "JINA_API_KEY",
 ];
 

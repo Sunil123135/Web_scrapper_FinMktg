@@ -1,9 +1,9 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireUser } from "../src/lib/server/auth.js";
-import { db, schema } from "../src/lib/server/db.js";
-import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http.js";
-import type { BriefItem } from "../src/lib/types.js";
+import { requireUser } from "../src/lib/server/auth";
+import { db, schema } from "../src/lib/server/db";
+import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http";
+import type { BriefItem } from "../src/lib/types";
 
 function readBody(req: VercelRequest) {
   return typeof req.body === "string" ? JSON.parse(req.body) : req.body;

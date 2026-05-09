@@ -10,7 +10,9 @@ import { EmptyState, Progress, Skeleton } from "@/components/ui/feedback";
 import { Input, Label, Select, Textarea } from "@/components/ui/form";
 import { getSources, saveSources, scrapeNow } from "@/lib/api";
 import { domainLabels, seedSources } from "@/lib/seedSources";
+import { getSourceUrlValidationError } from "@/lib/sourceUrl";
 import type { Domain, FailedSource, Source } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 const emptyProfile = {
   profileText: "AI tools, market shifts, and operational risks that affect my business.",
@@ -39,6 +41,21 @@ export function SourcesPage() {
   const [sources, setSources] = useState<Source[]>([]);
 
   const activeCount = useMemo(() => sources.filter((source) => source.active).length, [sources]);
+  const invalidSourceErrors = useMemo(
+    () =>
+      new Map(
+        sources
+          .map((source) => {
+            if (!source.url.trim()) {
+              return null;
+            }
+            const reason = getSourceUrlValidationError(source.url);
+            return reason ? ([source.id, reason] as const) : null;
+          })
+          .filter((entry): entry is readonly [string, string] => Boolean(entry)),
+      ),
+    [sources],
+  );
 
   useEffect(() => {
     void getSources(getToken)
@@ -51,6 +68,11 @@ export function SourcesPage() {
   }, [getToken, toast]);
 
   async function persist(nextSources = sources) {
+    if (invalidSourceErrors.size > 0) {
+      toast("Fix invalid source URLs before saving.", "error");
+      return;
+    }
+
     setSaving(true);
     try {
       const saved = await saveSources(getToken, { profile, sources: nextSources });
@@ -65,14 +87,32 @@ export function SourcesPage() {
   }
 
   async function runScrape() {
+    if (invalidSourceErrors.size > 0) {
+      toast("Fix invalid source URLs before scraping.", "error");
+      return;
+    }
+
     setScraping(true);
     setFailed([]);
     try {
       await persist();
       const result = await scrapeNow(getToken, profile.domain === "other" ? undefined : profile.domain);
       setFailed(result.failed);
-      toast(`Scraped ${result.inserted} new items, skipped ${result.skipped}`, "success");
-      navigate("/dashboard");
+      if (result.inserted > 0) {
+        toast(`Scraped ${result.inserted} new items, skipped ${result.skipped}`, "success");
+        navigate("/dashboard");
+        return;
+      }
+
+      if (result.failed.length > 0) {
+        toast(
+          `No new items were added. ${result.failed.length} source${result.failed.length === 1 ? "" : "s"} failed. Scroll down to review and edit source URLs.`,
+          "error",
+        );
+        return;
+      }
+
+      toast("No new items found from active sources for this run.", "info");
     } catch (error) {
       toast(error instanceof Error ? error.message : "Scrape failed", "error");
     } finally {
@@ -145,10 +185,10 @@ export function SourcesPage() {
           <Button variant="secondary" onClick={importSeeds}>
             Import seed sources
           </Button>
-          <Button variant="secondary" onClick={() => void persist()} disabled={saving}>
+          <Button variant="secondary" onClick={() => void persist()} disabled={saving || invalidSourceErrors.size > 0}>
             {saving ? "Saving..." : "Save"}
           </Button>
-          <Button onClick={() => void runScrape()} disabled={scraping || activeCount === 0}>
+          <Button onClick={() => void runScrape()} disabled={scraping || activeCount === 0 || invalidSourceErrors.size > 0}>
             {scraping ? "Scraping..." : "Scrape Now"}
           </Button>
         </div>
@@ -178,6 +218,9 @@ export function SourcesPage() {
                   />
                   <Input
                     aria-label="Source URL"
+                    className={cn(
+                      invalidSourceErrors.has(source.id) && "border-red-300 focus-visible:ring-red-500/40",
+                    )}
                     value={source.url}
                     placeholder="https://example.com"
                     onChange={(event) =>
@@ -186,6 +229,11 @@ export function SourcesPage() {
                       )
                     }
                   />
+                  {invalidSourceErrors.has(source.id) ? (
+                    <p className="md:col-span-2 -mt-1 text-xs font-medium text-red-600">
+                      {invalidSourceErrors.get(source.id)}
+                    </p>
+                  ) : null}
                   <Select
                     aria-label="Source category"
                     value={source.category}

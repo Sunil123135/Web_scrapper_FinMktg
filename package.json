@@ -2,10 +2,10 @@
   "name": "scrapesignal",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:full": "vercel dev",
+    "dev:api": "vercel dev --yes --listen 3000",
+    "dev:full": "vercel dev --yes",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",

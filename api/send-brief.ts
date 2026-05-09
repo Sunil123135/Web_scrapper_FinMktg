@@ -1,9 +1,10 @@
 import { asc, eq } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { buildBriefPayload } from "../src/lib/brief.js";
-import { requireUser } from "../src/lib/server/auth.js";
-import { db, schema } from "../src/lib/server/db.js";
-import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http.js";
+import { buildBriefPayload } from "../src/lib/brief";
+import { requireUser } from "../src/lib/server/auth";
+import { db, schema } from "../src/lib/server/db";
+import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http";
+import { postJsonToN8n } from "../src/lib/server/n8nWebhook";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -40,15 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })),
     });
 
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      throw Object.assign(new Error(`n8n webhook failed with ${response.status}`), { statusCode: 502 });
-    }
+    await postJsonToN8n(webhookUrl, { ...payload, event: "scrapesignal_brief" });
 
     sendJson(res, 200, { ok: true });
   } catch (error) {

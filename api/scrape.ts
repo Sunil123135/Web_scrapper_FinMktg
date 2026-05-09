@@ -1,12 +1,14 @@
 import { and, eq } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { createContentHash } from "../src/lib/hash.js";
-import { requireUser } from "../src/lib/server/auth.js";
-import { scoreWithClaude } from "../src/lib/server/claude.js";
-import { db, schema } from "../src/lib/server/db.js";
-import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http.js";
-import { extractArticle } from "../src/lib/server/scrape.js";
-import type { Domain, FailedSource } from "../src/lib/types.js";
+import { buildBriefPayload } from "../src/lib/brief";
+import { createContentHash } from "../src/lib/hash";
+import { requireUser } from "../src/lib/server/auth";
+import { scoreWithClaude } from "../src/lib/server/claude";
+import { db, schema } from "../src/lib/server/db";
+import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http";
+import { postJsonToN8n } from "../src/lib/server/n8nWebhook";
+import { extractArticle } from "../src/lib/server/scrape";
+import type { Domain, FailedSource } from "../src/lib/types";
 
 const DOMAINS = new Set<Domain>(["finance", "supply_chain", "marketing", "content", "other"]);
 
@@ -34,6 +36,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let inserted = 0;
     let skipped = 0;
     const failed: FailedSource[] = [];
+    const webhookItems: Array<{
+      title: string;
+      sourceLabel: string;
+      url: string;
+      summary: string;
+      score: number;
+      reason: string;
+    }> = [];
 
     for (const source of sources) {
       try {
@@ -70,6 +80,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           contentHash,
         });
         inserted += 1;
+        webhookItems.push({
+          title: article.title,
+          sourceLabel: source.label,
+          url: article.url,
+          summary: score.summary,
+          score: score.relevanceScore,
+          reason: score.reason,
+        });
       } catch (error) {
         failed.push({
           sourceId: source.id,
@@ -77,6 +95,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           url: source.url,
           reason: error instanceof Error ? error.message : "Unknown scrape failure",
         });
+      }
+    }
+
+    const webhookUrl = process.env.N8N_WEBHOOK_URL;
+    const postOnScrape = process.env.N8N_POST_ON_SCRAPE !== "false";
+    if (webhookUrl && postOnScrape && webhookItems.length > 0) {
+      try {
+        const payload = buildBriefPayload({
+          userEmail: user.email,
+          profileText: profile?.profileText ?? "",
+          generatedAt: new Date(),
+          items: webhookItems,
+        });
+        await postJsonToN8n(webhookUrl, { ...payload, event: "scrapesignal_scrape" });
+      } catch (err) {
+        console.error("[scrape] n8n webhook:", err instanceof Error ? err.message : err);
       }
     }
 

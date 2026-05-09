@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireUser } from "../src/lib/server/auth.js";
-import { scoreWithClaude } from "../src/lib/server/claude.js";
-import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http.js";
+import { requireUser } from "../src/lib/server/auth";
+import { scoreWithClaude } from "../src/lib/server/claude";
+import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http";
 
 function readBody(req: VercelRequest) {
   return typeof req.body === "string" ? JSON.parse(req.body) : req.body;

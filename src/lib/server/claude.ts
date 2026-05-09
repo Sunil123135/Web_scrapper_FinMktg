@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { parseClaudeScore, type ClaudeScore } from "../scoring.js";
+import { parseClaudeScore, type ClaudeScore } from "../scoring";
 
 const SYSTEM_PROMPT =
   'Output ONLY raw JSON: { "summary": string <=60 words, "relevance_score": integer 0-10, "reason": string <=25 words }.';
@@ -16,7 +16,7 @@ export async function scoreWithClaude(input: {
   }
 
   const client = new Anthropic({ apiKey });
-  const model = process.env.ANTHROPIC_MODEL ?? "claude-3-5-haiku-latest";
+  const model = process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5";
   const prompt = [
     `Interest profile: ${input.profileText || "General business relevance"}`,
     `URL: ${input.url}`,

@@ -1,9 +1,9 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireUser } from "../src/lib/server/auth.js";
-import { db, schema } from "../src/lib/server/db.js";
-import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http.js";
-import type { Domain, ScrapedItem } from "../src/lib/types.js";
+import { requireUser } from "../src/lib/server/auth";
+import { db, schema } from "../src/lib/server/db";
+import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http";
+import type { Domain, ScrapedItem } from "../src/lib/types";
 
 const DOMAINS = new Set<Domain>(["finance", "supply_chain", "marketing", "content", "other"]);
 

@@ -1,10 +1,11 @@
 import { eq } from "drizzle-orm";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { requireUser } from "../src/lib/server/auth.js";
-import { db, schema } from "../src/lib/server/db.js";
-import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http.js";
-import { mapSource } from "../src/lib/server/mappers.js";
-import type { Domain } from "../src/lib/types.js";
+import { requireUser } from "../src/lib/server/auth";
+import { db, schema } from "../src/lib/server/db";
+import { handleApiError, requireMethod, sendJson } from "../src/lib/server/http";
+import { mapSource } from "../src/lib/server/mappers";
+import { getSourceUrlValidationError, normalizeSourceUrl } from "../src/lib/sourceUrl";
+import type { Domain } from "../src/lib/types";
 
 const DOMAINS = new Set<Domain>(["finance", "supply_chain", "marketing", "content", "other"]);
 
@@ -52,12 +53,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .map((source) => ({
         id: typeof source.id === "string" && source.id.length > 0 ? source.id : crypto.randomUUID(),
         userId: user.id,
-        url: typeof source.url === "string" ? source.url.trim() : "",
+        url: typeof source.url === "string" ? normalizeSourceUrl(source.url) : "",
         label: typeof source.label === "string" ? source.label.trim() : "",
         category: parseDomain(source.category),
         active: source.active !== false,
       }))
       .filter((source) => source.url.length > 0 && source.label.length > 0);
+
+    const invalidSource = normalizedSources.find((source) => getSourceUrlValidationError(source.url) !== null);
+    if (invalidSource) {
+      const reason = getSourceUrlValidationError(invalidSource.url) ?? "Invalid URL.";
+      throw Object.assign(new Error(reason), { statusCode: 400 });
+    }
 
     await db
       .insert(schema.interestProfiles)

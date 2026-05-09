@@ -1,7 +1,7 @@
 import { createClerkClient, verifyToken } from "@clerk/backend";
 import { eq } from "drizzle-orm";
 import type { VercelRequest } from "@vercel/node";
-import { db, schema } from "./db.js";
+import { db, schema } from "./db";
 
 export type AuthenticatedUser = {
   id: string;
