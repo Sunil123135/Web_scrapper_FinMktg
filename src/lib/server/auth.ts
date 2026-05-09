@@ -1,5 +1,5 @@
 import { createClerkClient, verifyToken } from "@clerk/backend";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import type { VercelRequest } from "@vercel/node";
 import { db, schema } from "./db";
 
@@ -50,6 +50,15 @@ export async function requireUser(req: VercelRequest): Promise<AuthenticatedUser
     name: [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") || clerkUser.username || null,
     imageUrl: clerkUser.imageUrl ?? null,
   };
+
+  // Remove any stale row that has this email but a different Clerk user ID.
+  // This happens when dev vs prod Clerk environments assign different IDs to the same email.
+  const staleRow = await db.query.users.findFirst({
+    where: and(eq(schema.users.email, user.email), ne(schema.users.id, user.id)),
+  });
+  if (staleRow) {
+    await db.delete(schema.users).where(eq(schema.users.id, staleRow.id));
+  }
 
   await db
     .insert(schema.users)
